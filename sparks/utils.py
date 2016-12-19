@@ -3,9 +3,7 @@ from math import ceil, floor
 import numpy as np
 import openslide
 
-TILE_SIZE = (512, 512)
-
-def accumulated_histogram(image, histogram): 
+def accumulated_histogram(image, histogram):
     new_histogram = list(map(lambda x: cv2.calcHist([image[:,:,x]], 
                                                 [0], 
                                                 None, 
@@ -14,7 +12,7 @@ def accumulated_histogram(image, histogram):
                                                 hist=histogram[x], 
                                                 accumulate=True), 
                     range(3)))
-    return new_histogram
+    return histogram
 
 def calculate_otsu(histData):
     hist_sum = np.sum(np.multiply(np.arange(256.0), np.ravel(histData)))
@@ -74,7 +72,7 @@ def process_tiles_parallel(filename, parts, images):
             images.put((op.read_region((x, y), 0, TILE_SIZE), x, y))
     parts.task_done()  
 
-def produce(queue, args, func):
-    while True:
+def produce(queue, event, args, func):
+    while not event.is_set():
         if not queue.full():
             func(queue, args)
