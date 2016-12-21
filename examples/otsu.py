@@ -4,7 +4,7 @@ from datetime import datetime
 from multiprocessing import Event, JoinableQueue, Process, Queue
 import numpy as np
 import time
-from . import core
+from sparks import utils
 
 CPU_COUNT = 8
 

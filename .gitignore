@@ -1,0 +1,5 @@
+.coverage
+*.pyc
+build/
+dist/
+Sparks.egg-info/
