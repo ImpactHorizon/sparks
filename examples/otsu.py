@@ -4,7 +4,7 @@ from datetime import datetime
 from multiprocessing import Event, JoinableQueue, Process, Queue
 import numpy as np
 import time
-import utils
+from . import core
 
 CPU_COUNT = 8
 

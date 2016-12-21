@@ -3,15 +3,17 @@ from math import ceil, floor
 import numpy as np
 import openslide
 
+TILE_SIZE = (512, 512)
+
 def accumulated_histogram(image, histogram):
-    new_histogram = list(map(lambda x: cv2.calcHist([image[:,:,x]], 
-                                                [0], 
-                                                None, 
-                                                [256], 
-                                                [0, 256], 
-                                                hist=histogram[x], 
-                                                accumulate=True), 
-                    range(3)))
+    list(map(lambda x: cv2.calcHist([image], 
+                                    [x], 
+                                    None, 
+                                    [256], 
+                                    [0, 256], 
+                                    hist=histogram[:,x].reshape(256, 1), 
+                                    accumulate=True), 
+                range(2)))
     return histogram
 
 def calculate_otsu(histData):
@@ -42,13 +44,15 @@ def calculate_otsu(histData):
             threshold = t
     return threshold
 
+def concat(image):
+    return np.vstack(image)
+
 def consume(queue, event, args, func):
     while not event.is_set():
         func(queue, args)
 
 def get_tile(x, y, handler):
-    image = handler.read_region((x, y), 0, TILE_SIZE)
-    return cv2.cvtColor(np.array(image, dtype=np.uint8), cv2.COLOR_RGB2HSV)
+    return np.array(handler.read_region((x, y), 0, TILE_SIZE), dtype=np.uint8)
 
 def init_openslide(filename):
     handler = openslide.OpenSlide(filename)
@@ -76,3 +80,6 @@ def produce(queue, event, args, func):
     while not event.is_set():
         if not queue.full():
             func(queue, args)
+
+def to_hsv(image, **kwargs):
+    return cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
