@@ -1,5 +1,6 @@
 import cv2
 from math import ceil, floor
+import matplotlib.pyplot as plt
 import numpy as np
 import openslide
 
@@ -80,6 +81,25 @@ def produce(queue, event, args, func):
     while not event.is_set():
         if not queue.full():
             func(queue, args)
+
+def save_histogram_with_otsu(name, histograms, otsu, filename):
+    figure, axarr = plt.subplots(3, sharex=True)
+    plt.suptitle(name)
+    for x, otsu_value in zip(range(3), otsu):
+        axarr[x].bar(np.arange(0, 256), 
+                        np.log2(np.where(histograms[x] != 0, 
+                                            histograms[x], 
+                                            1)), 
+                        1.0)
+        axarr[x].grid(True)
+        axarr[x].set_ylabel("log2")
+        axarr[x].axvline(x=otsu_value, color="r")
+
+    axarr[0].set_xlim(0, 255)
+    axarr[0].set_title('Hue')
+    axarr[1].set_title('Saturation')
+    axarr[2].set_title('Value')
+    plt.savefig(filename)
 
 def to_hsv(image, **kwargs):
     return cv2.cvtColor(image, cv2.COLOR_RGB2HSV)

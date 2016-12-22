@@ -3,6 +3,7 @@ import cv2
 from datetime import datetime
 from multiprocessing import Event, JoinableQueue, Process, Queue
 import numpy as np
+import os
 import time
 from sparks import utils
 
@@ -63,7 +64,13 @@ if __name__ == '__main__':
     list(map(lambda event: event.set(), consumers_events))
     list(map(lambda proc: proc.join(), consumers))
     list(map(lambda proc: proc.join(), producers))
-    otsu = map(lambda x: utils.calculate_otsu(x), histogram.get())
+    histograms = histogram.get()
+    otsu = list(map(lambda x: utils.calculate_otsu(x), histograms))
+
+    utils.save_histogram_with_otsu(os.path.basename(FILE), 
+                                    histograms, 
+                                    otsu, 
+                                    TARGET + ".png")
 
     with open(TARGET, "w") as file_handle:
         file_handle.write(" ".join('%s' % x for x in otsu))
