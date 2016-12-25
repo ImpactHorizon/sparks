@@ -6,21 +6,26 @@ class GDriveReader():
     def __init__(self, settings_file="settings.yaml"):
         self.gauth = GoogleAuth(settings_file)
         self.gauth.ServiceAuth()
-        self.drive = GoogleDrive(self.gauth)
+        self.drive = GoogleDrive(self.gauth)        
 
-    def get_data(self):
-        pass
+    def get_data(self, fileid):
+        file = self.drive.CreateFile({'id' : fileid})
+        try:
+            return file.GetContentString()
+        except:
+            raise RuntimeError("Fetching file error.")
 
-    def to_file(self):
-        pass
+    def to_file(self, handle, fileid):
+        file = self.drive.CreateFile({'id' : fileid})
+        try:
+            file.FetchContent()
+        except:
+            raise RuntimeError("Fetching file error.")
+        handle.write(file.content.getvalue())        
 
     def list(self, query=None):
         if not query:
             query = "trashed=false"
     
-        return self.drive.ListFile({'q': query}).GetList()
-
-o = GDriveReader()
-o=o.list("title contains '.tif' and trashed=false")
-print(o[0]['fileSize'])
-#o[0].GetContentFile("cat.tif")
+        files = self.drive.ListFile({'q': query}).GetList()
+        return list(map(lambda file: (file['id'], file['title']), files))
