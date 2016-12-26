@@ -53,7 +53,9 @@ def consume(queue, event, args, func):
         func(queue, args)
 
 def get_tile(x, y, handler):
-    return np.array(handler.read_region((x, y), 0, TILE_SIZE), dtype=np.uint8)
+    return (np.array(handler.read_region((x, y), 0, TILE_SIZE), dtype=np.uint8), 
+            x, 
+            y)
 
 def init_openslide(filename):
     handler = openslide.OpenSlide(filename)
@@ -101,5 +103,16 @@ def save_histogram_with_otsu(name, histograms, otsu, filename):
     axarr[2].set_title('Value')
     plt.savefig(filename)
 
-def to_hsv(image, **kwargs):
+def save_pdf_distribution(name, pdfs, filename):
+    pass
+
+def scan(image, coords, x, y, thresholds):    
+    image_size = image[:,:,0].size    
+    val = (len(np.where((image[:,:,0] > thresholds[0]) & 
+                        (image[:,:,1] > thresholds[1]))[0])) / float(image_size)
+    coords.append((x, y, val))
+    return coords
+    
+
+def to_hsv(image, **kwargs):    
     return cv2.cvtColor(image, cv2.COLOR_RGB2HSV)

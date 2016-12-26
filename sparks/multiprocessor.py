@@ -37,8 +37,11 @@ class MultiProcessor(object):
         self.in_queue.join()
         list(map(lambda event: event.set(), self.consumers_events))
 
-    def put_into_out_queue(self, value):
-        self.out_queue.put({ self.output_names[0]: value })
+    def put_into_out_queue(self, values):
+        to_put = {}
+        for idx, value in enumerate(values):
+            to_put[self.output_names[idx]] = value            
+        self.out_queue.put(to_put)
 
     def set_input_queue(self, queue):
         self.in_queue = queue
@@ -91,12 +94,17 @@ class MultiProcessor(object):
                 for key, value in current_value.items():
                     args[key] = value
 
-            for function in self.functions:
-                value = function(**args)                
-                args[self.output_names[0]] = value
-
             ret = {}
-            ret[self.output_names[0]] = value
+            for function in self.functions:
+                value = function(**args)
+                if not isinstance(value, tuple):
+                    value = (value, )
+                for idx, name in enumerate(self.output_names):
+                    if idx == len(value):
+                        break
+                    args[name] = value[idx]
+                    ret[name] = args[name]
+            
             self.out_queue.put(ret)
             [self.in_queue.task_done() for x in range(self.resources_demanded)]
             

@@ -2,7 +2,7 @@ from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 from sparks.reader import Reader
 
-class GDriveReader():
+class GDriveReader(Reader):
     def __init__(self, settings_file="settings.yaml"):
         self.gauth = GoogleAuth(settings_file)
         self.gauth.ServiceAuth()

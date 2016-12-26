@@ -1,7 +1,7 @@
 from math import floor
 
 class MY_PDF():
-    def __init__(self, a=0, b=0):        
+    def __init__(self, a=0, b=0):
         self.buckets = [0]*100
         self.total = 0  
         self.a = a
