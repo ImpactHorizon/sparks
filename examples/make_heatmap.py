@@ -6,9 +6,8 @@ import numpy as np
 import openslide
 from sparks import utils
 from sparks.multiprocessor import MultiProcessor
-from sparks.pdf import MY_PDF
 
-def generate_samples(filename, thresholds, target, mask=None):
+def make_heatmap(filename, thresholds):
     read_tiles = MultiProcessor(functions=[utils.get_tile, utils.to_hsv], 
                                 output_names=['image', 'x', 'y'], 
                                 initializator=utils.init_openslide,
@@ -18,30 +17,35 @@ def generate_samples(filename, thresholds, target, mask=None):
 
     scan_tiles = MultiProcessor(functions=[partial(utils.scan,
                                                     thresholds=thresholds)], 
-                                    output_names=['coords'], 
+                                    output_names=['hmap'], 
                                     max_size=1,
                                     threads_num=4,
                                     update=True)
 
+    op = openslide.OpenSlide(filename)
+    size = op.dimensions
     read_tiles.init_input_queue(partial(utils.make_coords, filename))
     scan_tiles.set_input_queue(read_tiles.get_output())    
     read_tiles.start()    
-    scan_tiles.put_into_out_queue([[]])
+    scan_tiles.put_into_out_queue([np.zeros((int(size[0]/512), 
+                                                int(size[1]/512)), 
+                                            dtype=np.float64)])
     scan_tiles.start()
     read_tiles.join()
     scan_tiles.join()
 
-    coords = scan_tiles.get_output().get()
-
-    coords = coords['coords'] 
-    op = openslide.OpenSlide(filename)
-    size = op.dimensions
-    a = np.zeros((int(size[0]/512), int(size[1]/512)))
-    for coord in coords:
-        a[int(coord[0]/512), int(coord[1]/512)] = coord[2]
-
-    plt.imshow(a, cmap='hot', interpolation='nearest')
-    plt.show() 
+    output = scan_tiles.get_output().get()
+    hmap = output['hmap']
+    hist, bins = np.histogram(hmap, bins=100, range=(0.0, 1.0), density=True)
+    heatmap_otsu = utils.calculate_otsu(hist, 100)/100.0
+    plot = utils.save_thresholds_heatmap(hmap, 
+                                            hist, 
+                                            bins, 
+                                            heatmap_otsu)  
+    meat_percentage = (np.count_nonzero(np.where(hmap > heatmap_otsu, 
+                                                    1, 0)) / hmap.size) 
+    hmap_norm = hmap / np.sum(hmap)
+    return (plot, heatmap_otsu, meat_percentage, hmap_norm)        
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process in/out info.')
@@ -49,16 +53,10 @@ if __name__ == "__main__":
                         help='Path to file used for generating samples.')
     parser.add_argument('--thresholds', type=str, nargs=1, required=True,
                         help='Path to file with otsu thresholds in HSV.')
-    parser.add_argument('--mask', type=str, nargs=1, required=False, 
-                        help='Path to mask file with tumor regions.')
     parser.add_argument('--output', type=str, nargs=1, required=True,
                         help='Path to file where to write samples.')
     args = parser.parse_args()
     FILE = args.input[0]
-    if args.mask:
-        MASK = args.mask[0]
-    else:
-        MASK = None
     THRESHOLDS = args.thresholds[0]
     TARGET = args.output[0]
 
@@ -67,6 +65,11 @@ if __name__ == "__main__":
         otsu = list(map(lambda x: int(x), line.split(' ')))
 
     start = datetime.now()
-    generate_samples(FILE, otsu, TARGET, MASK)
+    plot, hmap_otsu, meat_percentage, hmap = make_heatmap(FILE, otsu)
+    plot.savefig(TARGET + ".png")
+    with open(TARGET, "w") as file_handle:
+        file_handle.write(str(hmap_otsu) + " " + str(meat_percentage))
+    with open(TARGET + "_distribution", "w") as file_handle:
+        hmap.tofile(file_handle)
     end = datetime.now()
     print (end-start)    

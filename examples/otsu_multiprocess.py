@@ -6,7 +6,7 @@ import os
 from sparks.multiprocessor import MultiProcessor
 from sparks import utils
 
-def otsu(infile, outfile):
+def otsu(infile):
     read_tiles = MultiProcessor(functions=[utils.get_tile, utils.to_hsv], 
                                 output_names=['image'], 
                                 initializator=utils.init_openslide,
@@ -31,14 +31,11 @@ def otsu(infile, outfile):
     histogram = make_histogram.get_output().get()['histogram']    
     otsu = list(map(lambda x: utils.calculate_otsu(histogram[:,x]), range(2)))
 
-    utils.save_histogram_with_otsu(os.path.basename(infile), 
-                                    list(map(lambda x: histogram[:,x], 
-                                                range(2))), 
-                                    otsu, 
-                                    outfile + ".png")
-
-    with open(outfile, "w") as file_handle:
-        file_handle.write(" ".join('%s' % x for x in otsu))
+    plot = utils.save_histogram_with_otsu(os.path.basename(infile), 
+                                            list(map(lambda x: histogram[:,x], 
+                                                        range(2))), 
+                                            otsu)
+    return (plot, otsu)    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process in/out info.')
@@ -51,6 +48,9 @@ if __name__ == '__main__':
     TARGET = args.output[0]
 
     start = datetime.now()
-    otsu(FILE, TARGET)
+    plot, otsus = otsu(FILE)
+    plot.savefig(TARGET + ".png")
+    with open(TARGET, "w") as file_handle:
+        file_handle.write(" ".join('%s' % x for x in otsus))
     end = datetime.now()
     print (end-start)
