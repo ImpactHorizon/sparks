@@ -9,6 +9,10 @@ class Counter(object):
         with self.lock:
             self.val.value += 1
 
+    def decrement(self):
+        with self.lock:
+            self.val.value -= 1
+
     def value(self):
         with self.lock:
             return self.val.value

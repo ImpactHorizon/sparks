@@ -1,5 +1,5 @@
 from multiprocessing import Event, JoinableQueue, Process, Queue
-from queue import Empty
+from queue import Empty, Full
 from time import sleep
 
 class MultiProcessor(object):
@@ -12,7 +12,8 @@ class MultiProcessor(object):
                     threads_num=8, 
                     update=False,
                     resources_demanded=1,
-                    mode="consumer"):
+                    mode="consumer",
+                    counter=None):
 
         self.functions = functions
         self.output_names = output_names
@@ -22,6 +23,7 @@ class MultiProcessor(object):
         self.update = update
         self.resources_demanded = resources_demanded
         self.mode = mode
+        self.counter = counter
 
         self.out_queue = JoinableQueue(max_size)
 
@@ -36,17 +38,21 @@ class MultiProcessor(object):
         self.in_queue = JoinableQueue(max_size)
         func(self.in_queue)
 
-    def join(self):
-        print("joinin...", self.functions)
+    def join(self, clear_in=False, clear_out=False):
         if self.mode == "consumer":
             self.in_queue.join()
         elif self.mode == "producer":
-            print(self.out_queue._maxsize)
-            if self.out_queue._maxsize != 2147483647:
-                while not self.out_queue.full():
+            if self.counter:
+                while self.counter.value() != 0:
                     sleep(0.2)
-        print("joined...", self.functions)
+
         list(map(lambda event: event.set(), self.runners_events))
+        if clear_in:
+            while not self.in_queue.empty():
+                self.in_queue.get_nowait()
+        if clear_out:
+            while not self.out_queue.empty():
+                self.out_queue.get_nowait()
 
     def put_into_out_queue(self, values):
         to_put = {}
@@ -58,7 +64,7 @@ class MultiProcessor(object):
         self.in_queue = queue
 
     def start(self):
-        if self.mode == "consumer" or self.mode == "prod-cons":
+        if self.mode == "consumer":
             if not self.in_queue:
                 raise RuntimeError("Please set input queue before start")
 
@@ -103,7 +109,16 @@ class MultiProcessor(object):
                 for key, value in init_ret.items():
                     args[key] = value
             if self.update:
-                current_value = self.out_queue.get()
+                while True:                
+                    try:
+                        current_value = self.out_queue.get(timeout=0.3)
+                    except Empty:
+                        if event.is_set():
+                            return   
+                        continue 
+                    else:                
+                        break
+                
                 for key, value in current_value.items():
                     args[key] = value
 
@@ -126,5 +141,19 @@ class MultiProcessor(object):
                 [self.in_queue.task_done() 
                     for x in range(self.resources_demanded)]
             if not proc_error:
-                self.out_queue.put(ret)            
+                if self.counter:
+                    if self.counter.value() == 0:
+                        continue
+                    else:                        
+                        self.counter.decrement()
+                while True:                                   
+                    try:
+                        self.out_queue.put(ret, timeout=0.3)
+                    except Full:
+                        if event.is_set():
+                            return
+                        continue
+                    else:                        
+                        break
+
             
