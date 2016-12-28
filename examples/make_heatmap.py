@@ -1,9 +1,7 @@
 import argparse
 from datetime import datetime
 from functools import partial
-import matplotlib.pyplot as plt
 import numpy as np
-import openslide
 from sparks import utils
 from sparks.multiprocessor import MultiProcessor
 
@@ -22,13 +20,10 @@ def make_heatmap(filename, thresholds):
                                     threads_num=4,
                                     update=True)
 
-    op = openslide.OpenSlide(filename)
-    size = op.dimensions
     read_tiles.init_input_queue(partial(utils.make_coords, filename))
     scan_tiles.set_input_queue(read_tiles.get_output())    
     read_tiles.start()    
-    scan_tiles.put_into_out_queue([np.zeros((int(size[0]/512), 
-                                                int(size[1]/512)), 
+    scan_tiles.put_into_out_queue([np.zeros(utils.calc_size_in_tiles(filename), 
                                             dtype=np.float64)])
     scan_tiles.start()
     read_tiles.join()
@@ -45,7 +40,17 @@ def make_heatmap(filename, thresholds):
     meat_percentage = (np.count_nonzero(np.where(hmap > heatmap_otsu, 
                                                     1, 0)) / hmap.size) 
     hmap_norm = hmap / np.sum(hmap)
-    return (plot, heatmap_otsu, meat_percentage, hmap_norm)        
+    return (plot, heatmap_otsu, meat_percentage, hmap_norm)  
+
+def save_results(hmap_otsu, meat_percentage, hmap, plot, dir_path):
+    heat_path = utils.os.path.join(dir_path, "heatmap.png")
+    params_path = utils.os.path.join(dir_path, "params.txt")
+    distribution_path = utils.os.path.join(dir_path, "distribution")
+    plot.savefig(heat_path)
+    with open(params_path, "w") as file_handle:
+        file_handle.write(str(hmap_otsu) + " " + str(meat_percentage))
+    with open(distribution_path, "w") as file_handle:
+        hmap.tofile(file_handle)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process in/out info.')
@@ -66,10 +71,8 @@ if __name__ == "__main__":
 
     start = datetime.now()
     plot, hmap_otsu, meat_percentage, hmap = make_heatmap(FILE, otsu)
-    plot.savefig(TARGET + ".png")
-    with open(TARGET, "w") as file_handle:
-        file_handle.write(str(hmap_otsu) + " " + str(meat_percentage))
-    with open(TARGET + "_distribution", "w") as file_handle:
-        hmap.tofile(file_handle)
+    dir_path = utils.make_directory(utils.os.path.join(
+                                                TARGET, utils.basename(FILE)))
+    save_results(hmap_otsu, meat_percentage, hmap, plot, dir_path)
     end = datetime.now()
     print (end-start)    

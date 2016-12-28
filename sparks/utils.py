@@ -11,22 +11,30 @@ from random import randint
 TILE_SIZE = (512, 512)
 
 def accumulated_histogram(image, histogram):
-    list(map(lambda x: cv2.calcHist([image], 
+    hist = list(map(lambda x: cv2.calcHist([image], 
                                     [x], 
                                     None, 
                                     [256], 
-                                    [0, 256], 
-                                    hist=histogram[:,x].reshape(256, 1), 
-                                    accumulate=True), 
-                range(2)))
+                                    [0, 256]), 
+                    range(3)))
+    list(map(lambda x: np.add(hist[x].ravel(), 
+                                histogram[:,x].ravel(), 
+                                out=histogram[:,x]), range(3)))    
     return histogram
+
+def basename(filename):
+    return os.path.basename(filename).split(".")[0]
 
 def calc_number_of_samples(filename, meat_percentage, sample_size):
     op = openslide.OpenSlide(filename)
     scales = map(lambda x, y: x/y, TILE_SIZE, sample_size)
-    return (reduce(lambda x, y: x*y, 
+    return int((reduce(lambda x, y: x*y, 
                     map(lambda x, y, z: x/y*z, op.dimensions, 
-                            TILE_SIZE, scales)) * meat_percentage)
+                            TILE_SIZE, scales)) * meat_percentage))
+
+def calc_size_in_tiles(filename, tile_size=TILE_SIZE):
+    op = openslide.OpenSlide(filename)
+    return list(map(lambda x, y: int(x/y), op.dimensions, tile_size))
 
 def calculate_otsu(histData, bins=256):
     hist_sum = np.sum(np.multiply(np.arange(float(bins)), np.ravel(histData)))
@@ -83,12 +91,12 @@ def consume(queue, event, args, func):
     while not event.is_set():
         func(queue, args)
 
-def get_tile(x, y, handler):
+def get_tile(x, y, handler, **kwargs):
     return (np.array(handler.read_region((x, y), 0, TILE_SIZE), dtype=np.uint8), 
             int(x/TILE_SIZE[0]), 
             int(y/TILE_SIZE[1]))
 
-def init_openslide(filename, maskname):
+def init_openslide(filename, maskname=None):
     handler = openslide.OpenSlide(filename)
     ret = {"handler" : handler}
     if maskname:
@@ -107,8 +115,7 @@ def init_sampler_coords(filename):
 
 def init_sampler_directories(target_dir, class_dirs):
     for class_dir in class_dirs:
-        if not os.path.exists(os.path.join(target_dir, class_dir)):
-            os.makedirs(os.path.join(target_dir, class_dir))
+        make_directory(os.path.join(target_dir, class_dir))
     return {}
 
 def make_coords(filename, coords):
@@ -117,6 +124,11 @@ def make_coords(filename, coords):
     for x in range(0, size[0], TILE_SIZE[0]):
         for y in range(0, size[1], TILE_SIZE[1]):
             coords.put({'x': x, 'y': y})
+
+def make_directory(target_dir):
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir)
+    return target_dir
 
 def process_tiles_parallel(filename, parts, images):
     op=openslide.OpenSlide(filename)
@@ -139,6 +151,15 @@ def pull_coords(coords, distribution, **kwargs):
                                             p=distribution)]
     xy = list(map(lambda x: draw[x] * 512 + randint(0, 512) - 256, range(2)))
     return xy
+
+def samples_heatmap(x, y, samples_map, read_size):
+    samples_map[int(x/read_size[0]), int(y/read_size[1])] += 1
+    return samples_map
+
+def save_heatmap(heatmap):
+    plt.suptitle("Heatmap of sampled tiles.")
+    plt.imshow(heatmap, cmap='gnuplot', interpolation='nearest')
+    return plt
 
 def save_histogram_with_otsu(name, histograms, otsu):
     figure, axarr = plt.subplots(3, sharex=True)
@@ -190,8 +211,7 @@ def scan(image, hmap, x, y, thresholds):
     val = (len(np.where((image[:,:,0] > thresholds[0]) & 
                         (image[:,:,1] > thresholds[1]))[0])) / float(image_size)
     hmap[x, y] = val    
-    return hmap
-    
+    return hmap  
 
 def to_hsv(image, **kwargs):    
     return cv2.cvtColor(image, cv2.COLOR_RGB2HSV)

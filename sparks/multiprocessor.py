@@ -49,10 +49,10 @@ class MultiProcessor(object):
         list(map(lambda event: event.set(), self.runners_events))
         if clear_in:
             while not self.in_queue.empty():
-                self.in_queue.get_nowait()
+                self.in_queue.get()
         if clear_out:
             while not self.out_queue.empty():
-                self.out_queue.get_nowait()
+                self.out_queue.get()
 
     def put_into_out_queue(self, values):
         to_put = {}

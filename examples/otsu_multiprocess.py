@@ -2,15 +2,14 @@ import argparse
 from datetime import datetime
 from functools import partial
 import numpy as np
-import os
 from sparks.multiprocessor import MultiProcessor
 from sparks import utils
 
-def otsu(infile):
+def otsu(filename):
     read_tiles = MultiProcessor(functions=[utils.get_tile, utils.to_hsv], 
                                 output_names=['image'], 
                                 initializator=utils.init_openslide,
-                                initializator_args={"filename": infile},
+                                initializator_args={"filename": filename},
                                 max_size=1024,
                                 threads_num=6)
 
@@ -20,22 +19,29 @@ def otsu(infile):
                                     threads_num=3,
                                     update=True)
 
-    read_tiles.init_input_queue(partial(utils.make_coords, infile))
+    read_tiles.init_input_queue(partial(utils.make_coords, filename))
     make_histogram.set_input_queue(read_tiles.get_output())    
     read_tiles.start()    
-    make_histogram.put_into_out_queue([np.zeros([256, 2], dtype=np.float32)])
+    make_histogram.put_into_out_queue([np.zeros([256, 3], dtype=np.float32)])
     make_histogram.start()
     read_tiles.join()
     make_histogram.join()
 
-    histogram = make_histogram.get_output().get()['histogram']    
-    otsu = list(map(lambda x: utils.calculate_otsu(histogram[:,x]), range(2)))
+    histogram = make_histogram.get_output().get()['histogram']
+    otsu = list(map(lambda x: utils.calculate_otsu(histogram[:,x]), range(3)))
 
-    plot = utils.save_histogram_with_otsu(os.path.basename(infile), 
+    plot = utils.save_histogram_with_otsu(utils.basename(filename), 
                                             list(map(lambda x: histogram[:,x], 
-                                                        range(2))), 
+                                                        range(3))), 
                                             otsu)
-    return (plot, otsu)    
+    return (plot, otsu) 
+
+def save_results(otsu, plot, dir_path):
+    hist_path = utils.os.path.join(dir_path, "histograms.png")
+    otsu_path = utils.os.path.join(dir_path, "otsus.txt")
+    plot.savefig(hist_path)    
+    with open(otsu_path, "w") as file_handle:
+        file_handle.write(" ".join('%s' % x for x in otsus))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process in/out info.')
@@ -49,8 +55,8 @@ if __name__ == '__main__':
 
     start = datetime.now()
     plot, otsus = otsu(FILE)
-    plot.savefig(TARGET + ".png")
-    with open(TARGET, "w") as file_handle:
-        file_handle.write(" ".join('%s' % x for x in otsus))
+    dir_path = utils.make_directory(utils.os.path.join(
+                                                TARGET, utils.basename(FILE)))
+    save_results(otsus, plot, dir_path)
     end = datetime.now()
     print (end-start)
