@@ -33,10 +33,12 @@ def make_heatmap(filename, thresholds):
     hmap = output['hmap']
     hist, bins = np.histogram(hmap, bins=100, range=(0.0, 1.0), density=True)
     heatmap_otsu = utils.calculate_otsu(hist, 100)/100.0
-    plot = utils.save_thresholds_heatmap(hmap, 
+    mini = utils.get_mini(filename)
+    plot = utils.save_thresholds_heatmap(hmap.swapaxes(0, 1), 
                                             hist, 
                                             bins, 
-                                            heatmap_otsu)  
+                                            heatmap_otsu,
+                                            mini)  
     meat_percentage = (np.count_nonzero(np.where(hmap > heatmap_otsu, 
                                                     1, 0)) / hmap.size) 
     hmap_norm = hmap / np.sum(hmap)

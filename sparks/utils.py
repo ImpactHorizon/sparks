@@ -91,6 +91,13 @@ def consume(queue, event, args, func):
     while not event.is_set():
         func(queue, args)
 
+def get_mini(filename):
+    handler = openslide.OpenSlide(filename)
+    size = handler.level_dimensions[-1]
+    return np.array(handler.read_region((0, 0), handler.level_count-1, size),
+                    dtype=np.uint8)
+
+
 def get_tile(x, y, handler, **kwargs):
     return (np.array(handler.read_region((x, y), 0, TILE_SIZE), dtype=np.uint8), 
             int(x/TILE_SIZE[0]), 
@@ -156,9 +163,18 @@ def samples_heatmap(x, y, samples_map, read_size):
     samples_map[int(x/read_size[0]), int(y/read_size[1])] += 1
     return samples_map
 
-def save_heatmap(heatmap):
+def save_heatmap(heatmap, mask):
+    xmin, xmax, ymin, ymax = 0, heatmap.shape[1], heatmap.shape[0], 0
+    extent = xmin, xmax, ymin, ymax
+    if mask is not None:
+        xmin, xmax, ymin, ymax = (0, max(heatmap.shape[1], mask.shape[1]), 
+                                    max(heatmap.shape[0], mask.shape[0]), 0)
+        extent = xmin, xmax, ymin, ymax
+        plt.imshow(mask, extent=extent)
+        plt.hold(True)
     plt.suptitle("Heatmap of sampled tiles.")
-    plt.imshow(heatmap, cmap='gnuplot', interpolation='nearest')
+    plt.imshow(heatmap, cmap='gnuplot', interpolation='nearest', extent=extent,
+                alpha=.7)
     return plt
 
 def save_histogram_with_otsu(name, histograms, otsu):
@@ -192,18 +208,23 @@ def save_image(image, x, y, tumor, target_dir):
                 quality=50)
     return (x, y)
 
-def save_thresholds_heatmap(hmap, hist, bins, heatmap_otsu):        
+def save_thresholds_heatmap(hmap, hist, bins, heatmap_otsu, mini):        
     width = 0.7 * (bins[1] - bins[0])
     center = (bins[:-1] + bins[1:]) / 2
-    figure, axarr = plt.subplots(2)
-    axarr[0].bar(center, hist, width=width)
-    axarr[0].grid(True)
-    axarr[0].set_xlim(0.0, 1.0)
-    axarr[0].set_title('Values histogram')
-    axarr[0].set_ylabel("Probability %")
-    axarr[0].axvline(x=heatmap_otsu, color="r")
-    axarr[1].set_title('Values heatmap')
-    axarr[1].imshow(hmap, cmap='hot', interpolation='nearest')    
+
+    ax = plt.subplot(1, 2, 1)
+    ax.bar(center, hist, width=width)
+    ax.grid(True)
+    ax.set_xlim(0.0, 1.0)
+    ax.set_title('Values histogram')
+    ax.set_ylabel("Percent of samples (%)")
+    ax.axvline(x=heatmap_otsu, color="r")  
+    ax = plt.subplot(2, 2, 2)    
+    ax.set_title('Values heatmap')
+    ax.imshow(hmap, cmap='hot', interpolation='nearest')
+    ax = plt.subplot(2, 2, 4)
+    ax.set_title("Original mini")
+    ax.imshow(mini)
     return plt    
 
 def scan(image, hmap, x, y, thresholds):    
