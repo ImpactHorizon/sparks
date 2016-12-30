@@ -5,14 +5,6 @@ import numpy as np
 from sparks.multiprocessor import MultiProcessor
 from sparks import utils
 
-def moving_average(a, n=3) :
-    ret = a.ravel()
-    ret = np.cumsum(ret, dtype=np.float32)
-    ret = np.insert(ret, 0, [a[-1]]*int((n-1)/2))
-    ret = np.insert(ret, ret.size, [a[0]]*int((n-1)/2))
-    ret[n:] = ret[n:] - ret[:-n]
-    return ret[n - 1:] / n
-
 def otsu(filename):
     read_tiles = MultiProcessor(functions=[utils.get_tile, utils.to_hsv], 
                                 output_names=['image'], 
@@ -30,24 +22,23 @@ def otsu(filename):
     read_tiles.init_input_queue(partial(utils.make_coords, filename))
     make_histogram.set_input_queue(read_tiles.get_output())    
     read_tiles.start()    
-    make_histogram.put_into_out_queue([np.zeros([256, 3], dtype=np.float32)])
+    make_histogram.put_into_out_queue([3*[np.zeros([256], dtype=np.float32)]])
     make_histogram.start()
     read_tiles.join()
     make_histogram.join()
 
     histogram = make_histogram.get_output().get()['histogram']
-    otsu = list(map(lambda x: utils.calculate_otsu(histogram[:,x]), range(3)))
+    print(type(histogram))
+    print(len(histogram))
+    otsu = list(map(lambda x: utils.calculate_otsu(histogram[x]), range(3)))
 
-    hsv_old = -1
-    hsv_new = otsu[0]
-    while abs(hsv_new - hsv_old) > 2:
-        print(hsv_old, hsv_new)
-        histogram[:,0] = moving_average(histogram[:,0])
-        hsv_old = hsv_new
-        hsv_new = utils.calculate_otsu(histogram[:,0])
-    otsu[0] = hsv_new
+    hue_hist = histogram[0][:180].ravel()
+    peaks = utils.detect_peaks(hue_hist)
+    otsu[0] = utils.circular_otsu(hue_hist, int((peaks[0]+peaks[1])/2))[0]
+    histogram[0] = hue_hist
+
     plot = utils.save_histogram_with_otsu(utils.basename(filename), 
-                                            list(map(lambda x: histogram[:,x], 
+                                            list(map(lambda x: histogram[x], 
                                                         range(3))), 
                                             otsu)
     return (plot, otsu) 

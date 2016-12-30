@@ -7,6 +7,8 @@ import numpy as np
 import openslide
 import os
 from random import randint
+from scipy.ndimage.filters import gaussian_filter
+from scipy.signal import argrelextrema
 
 TILE_SIZE = (512, 512)
 
@@ -17,9 +19,8 @@ def accumulated_histogram(image, histogram):
                                     [256], 
                                     [0, 256]), 
                     range(3)))
-    list(map(lambda x: np.add(hist[x].ravel(), 
-                                histogram[:,x].ravel(), 
-                                out=histogram[:,x]), range(3)))    
+    for x in range(3):
+        histogram[x] = np.add(hist[x].ravel(), histogram[x].ravel())                                
     return histogram
 
 def basename(filename):
@@ -84,12 +85,36 @@ def check_tumor_value(mask):
         return np.count_nonzero(numpy_mask[:,:,0])/float(numpy_mask.size/4)
     return 0.0
 
+def circular_otsu(hist, init_val):
+    k1 = [init_val]
+    k2 = []
+    i = 0
+    while True:
+        rolled = np.roll(hist, -k1[-1])        
+        k2.append(calculate_otsu(rolled, hist.size))
+        rolled = np.roll(hist, -k2[-1])
+        k1.append(calculate_otsu(rolled, hist.size))
+        if i > 1:            
+            if (k1[-1] == k1[-2] and k2[-1] == k2[-2]):
+                return (k1[-1], k2[-1])
+        i += 1
+    print(k1, k2)
+
 def concat(image):
     return np.vstack(image)
 
 def consume(queue, event, args, func):
     while not event.is_set():
         func(queue, args)
+
+def detect_peaks(hist, sigma=10, count=2):
+    hist_copy = hist
+    peaks = count+1
+    while (peaks > count):
+        hist_copy = gaussian_filter(hist_copy, sigma=sigma)
+        sigma *= 0.9
+        peaks = len(argrelextrema(hist_copy, np.greater, mode="wrap")[0])
+    return argrelextrema(hist_copy, np.greater, mode="wrap")[0]
 
 def get_mini(filename):
     handler = openslide.OpenSlide(filename)
@@ -166,7 +191,9 @@ def samples_heatmap(x, y, samples_map, read_size):
 def save_heatmap(heatmap, mask):
     xmin, xmax, ymin, ymax = 0, heatmap.shape[1], heatmap.shape[0], 0
     extent = xmin, xmax, ymin, ymax
+    alpha=1.0
     if mask is not None:
+        alpha=0.7
         xmin, xmax, ymin, ymax = (0, max(heatmap.shape[1], mask.shape[1]), 
                                     max(heatmap.shape[0], mask.shape[0]), 0)
         extent = xmin, xmax, ymin, ymax
@@ -174,14 +201,14 @@ def save_heatmap(heatmap, mask):
         plt.hold(True)
     plt.suptitle("Heatmap of sampled tiles.")
     plt.imshow(heatmap, cmap='gnuplot', interpolation='nearest', extent=extent,
-                alpha=.7)
+                alpha=alpha)
     return plt
 
 def save_histogram_with_otsu(name, histograms, otsu):
-    figure, axarr = plt.subplots(3, sharex=True)
-    plt.suptitle(name)
+    figure, axarr = plt.subplots(3)
+    figure.tight_layout()
     for x, otsu_value in zip(range(3), otsu):
-        axarr[x].bar(np.arange(0, 256), 
+        axarr[x].bar(np.arange(0, histograms[x].size), 
                         np.log2(np.where(histograms[x] >= 1, 
                                             histograms[x], 
                                             1)), 
@@ -189,8 +216,8 @@ def save_histogram_with_otsu(name, histograms, otsu):
         axarr[x].grid(True)
         axarr[x].set_ylabel("log2")
         axarr[x].axvline(x=otsu_value, color="r")
-
-    axarr[0].set_xlim(0, 255)
+        axarr[x].set_xlim(0, histograms[x].size)
+    
     axarr[0].set_title('Hue')
     axarr[1].set_title('Saturation')
     axarr[2].set_title('Value')
