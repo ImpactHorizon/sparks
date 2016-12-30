@@ -182,7 +182,7 @@ def save_histogram_with_otsu(name, histograms, otsu):
     plt.suptitle(name)
     for x, otsu_value in zip(range(3), otsu):
         axarr[x].bar(np.arange(0, 256), 
-                        np.log2(np.where(histograms[x] != 0, 
+                        np.log2(np.where(histograms[x] >= 1, 
                                             histograms[x], 
                                             1)), 
                         1.0)
@@ -230,7 +230,8 @@ def save_thresholds_heatmap(hmap, hist, bins, heatmap_otsu, mini):
 def scan(image, hmap, x, y, thresholds):    
     image_size = image[:,:,0].size    
     val = (len(np.where((image[:,:,0] > thresholds[0]) & 
-                        (image[:,:,1] > thresholds[1]))[0])) / float(image_size)
+                        (image[:,:,1] > thresholds[1]) &
+                        (image[:,:,2] > 50))[0])) / float(image_size)
     hmap[x, y] = val    
     return hmap  
 

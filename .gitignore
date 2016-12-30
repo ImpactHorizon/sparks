@@ -1,5 +1,6 @@
 .coverage
 *.pyc
+*.p12
 build/
 dist/
 Sparks.egg-info/

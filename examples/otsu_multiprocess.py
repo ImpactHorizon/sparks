@@ -5,6 +5,14 @@ import numpy as np
 from sparks.multiprocessor import MultiProcessor
 from sparks import utils
 
+def moving_average(a, n=3) :
+    ret = a.ravel()
+    ret = np.cumsum(ret, dtype=np.float32)
+    ret = np.insert(ret, 0, [a[-1]]*int((n-1)/2))
+    ret = np.insert(ret, ret.size, [a[0]]*int((n-1)/2))
+    ret[n:] = ret[n:] - ret[:-n]
+    return ret[n - 1:] / n
+
 def otsu(filename):
     read_tiles = MultiProcessor(functions=[utils.get_tile, utils.to_hsv], 
                                 output_names=['image'], 
@@ -30,6 +38,14 @@ def otsu(filename):
     histogram = make_histogram.get_output().get()['histogram']
     otsu = list(map(lambda x: utils.calculate_otsu(histogram[:,x]), range(3)))
 
+    hsv_old = -1
+    hsv_new = otsu[0]
+    while abs(hsv_new - hsv_old) > 2:
+        print(hsv_old, hsv_new)
+        histogram[:,0] = moving_average(histogram[:,0])
+        hsv_old = hsv_new
+        hsv_new = utils.calculate_otsu(histogram[:,0])
+    otsu[0] = hsv_new
     plot = utils.save_histogram_with_otsu(utils.basename(filename), 
                                             list(map(lambda x: histogram[:,x], 
                                                         range(3))), 
