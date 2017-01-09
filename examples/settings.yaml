@@ -1,0 +1,4 @@
+service_config:
+  client_service_email: 865262045332-compute@developer.gserviceaccount.com
+  client_user_email: razor.sharp.consciousness@gmail.com
+  client_pkcs12_file_path: camelyon-access-6b91d156d0af.p12

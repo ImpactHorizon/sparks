@@ -79,7 +79,7 @@ if __name__ == "__main__":
         line = file_handle.read()
         otsu = list(map(lambda y: list(map(lambda z: int(z), y)), 
                             tuple(map(lambda x: x.split(" "), 
-                                        line.split("\n")[:-1]))))    
+                                        line.split("\n")[:-1]))))
 
     start = datetime.now()
     plot, hmap_otsu, meat_percentage, hmap = make_heatmap(FILE, otsu)

@@ -68,9 +68,12 @@ def calculate_otsu(histData, bins=256):
 def check_coords(handler, xy, thresholds, tval, read_size, mask_handler):
     image = handler.read_region((xy[0], xy[1]), 0, read_size)
     hsv = cv2.cvtColor(np.array(image, dtype=np.uint8), cv2.COLOR_RGB2HSV)
-    image_size = hsv[:,:,0].size    
-    val = (len(np.where((hsv[:,:,0] > thresholds[0]) & 
-                        (hsv[:,:,1] > thresholds[1]))[0])) / float(image_size)
+    image_size = hsv[:,:,0].size
+    max_hue = max(thresholds[0])
+    min_hue = min(thresholds[0])
+    val = (len(np.where(((hsv[:,:,0] > max_hue) | (hsv[:,:,0] < min_hue)) &
+                        (hsv[:,:,1] > thresholds[1]) & 
+                        (hsv[:,:,2] > 50))[0])) / float(image_size)
     if not val > tval:
         return None
     mask = None
@@ -196,7 +199,7 @@ def save_heatmap(heatmap, mask):
     extent = xmin, xmax, ymin, ymax
     alpha=1.0
     if mask is not None:
-        alpha=0.7
+        alpha=0.5
         xmin, xmax, ymin, ymax = (0, max(heatmap.shape[1], mask.shape[1]), 
                                     max(heatmap.shape[0], mask.shape[0]), 0)
         extent = xmin, xmax, ymin, ymax
