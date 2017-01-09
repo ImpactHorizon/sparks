@@ -28,27 +28,26 @@ def otsu(filename):
     make_histogram.join()
 
     histogram = make_histogram.get_output().get()['histogram']
-    print(type(histogram))
-    print(len(histogram))
-    otsu = list(map(lambda x: utils.calculate_otsu(histogram[x]), range(3)))
-
+    otsu = tuple(map(lambda x: (utils.calculate_otsu(histogram[x]), ), 
+                        range(1,3)))
     hue_hist = histogram[0][:180].ravel()
-    peaks = utils.detect_peaks(hue_hist)
-    otsu[0] = utils.circular_otsu(hue_hist, int((peaks[0]+peaks[1])/2))[0]
+    peaks = utils.detect_peaks(hue_hist)    
+    otsu = (utils.circular_otsu(hue_hist, int((peaks[0]+peaks[1])/2)), ) + otsu    
     histogram[0] = hue_hist
-
     plot = utils.save_histogram_with_otsu(utils.basename(filename), 
                                             list(map(lambda x: histogram[x], 
                                                         range(3))), 
                                             otsu)
     return (plot, otsu) 
 
-def save_results(otsu, plot, dir_path):
+def save_results(otsus, plot, dir_path):
     hist_path = utils.os.path.join(dir_path, "histograms.png")
     otsu_path = utils.os.path.join(dir_path, "otsus.txt")
     plot.savefig(hist_path)    
     with open(otsu_path, "w") as file_handle:
-        file_handle.write(" ".join('%s' % x for x in otsus))
+        for val in otsus:
+            file_handle.write(" ".join('%s' % x for x in val))
+            file_handle.write("\n")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process in/out info.')

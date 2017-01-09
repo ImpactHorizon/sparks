@@ -1,7 +1,7 @@
 import cv2
 from functools import reduce
 from itertools import product
-from math import ceil, floor
+from math import ceil, floor, log1p
 import matplotlib.pyplot as plt
 import numpy as np
 import openslide
@@ -107,13 +107,16 @@ def consume(queue, event, args, func):
     while not event.is_set():
         func(queue, args)
 
-def detect_peaks(hist, sigma=10, count=2):
-    hist_copy = hist
-    peaks = count+1
+def detect_peaks(hist, count=2):
+    hist_copy = hist    
+    peaks = len(argrelextrema(hist_copy, np.greater, mode="wrap")[0])
+    sigma = log1p(peaks)
+    print(peaks, sigma)
     while (peaks > count):
-        hist_copy = gaussian_filter(hist_copy, sigma=sigma)
-        sigma *= 0.9
+        hist_copy = gaussian_filter(hist_copy, sigma=sigma)        
         peaks = len(argrelextrema(hist_copy, np.greater, mode="wrap")[0])
+        sigma = log1p(peaks)
+    print(peaks, sigma)
     return argrelextrema(hist_copy, np.greater, mode="wrap")[0]
 
 def get_mini(filename):
@@ -215,7 +218,8 @@ def save_histogram_with_otsu(name, histograms, otsu):
                         1.0)
         axarr[x].grid(True)
         axarr[x].set_ylabel("log2")
-        axarr[x].axvline(x=otsu_value, color="r")
+        for val in otsu_value:
+            axarr[x].axvline(x=val, color="r")
         axarr[x].set_xlim(0, histograms[x].size)
     
     axarr[0].set_title('Hue')
@@ -254,13 +258,19 @@ def save_thresholds_heatmap(hmap, hist, bins, heatmap_otsu, mini):
     ax.imshow(mini)
     return plt    
 
-def scan(image, hmap, x, y, thresholds):    
-    image_size = image[:,:,0].size    
-    val = (len(np.where((image[:,:,0] > thresholds[0]) & 
+def scan(image, x, y, thresholds):    
+    image_size = image[:,:,0].size   
+    max_hue = max(thresholds[0])
+    min_hue = min(thresholds[0])    
+    val = (len(np.where(((image[:,:,0] > max_hue) | 
+                        (image[:,:,0] < min_hue)) &
                         (image[:,:,1] > thresholds[1]) &
-                        (image[:,:,2] > 50))[0])) / float(image_size)
-    hmap[x, y] = val    
-    return hmap  
+                        (image[:,:,2] > 50))[0])) / float(image_size)  
+    return (x, y, val)
+
+def set_hmap(hmap, x, y, val):
+    hmap[x, y] = val
+    return hmap
 
 def to_hsv(image, **kwargs):    
     return cv2.cvtColor(image, cv2.COLOR_RGB2HSV)

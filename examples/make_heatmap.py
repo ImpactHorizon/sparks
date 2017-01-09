@@ -15,21 +15,29 @@ def make_heatmap(filename, thresholds):
 
     scan_tiles = MultiProcessor(functions=[partial(utils.scan,
                                                     thresholds=thresholds)], 
-                                    output_names=['hmap'], 
+                                    output_names=['x', 'y', 'val'], 
+                                    max_size=1024,
+                                    threads_num=4)
+
+    make_heatmap = MultiProcessor(functions=[utils.set_hmap],
+                                    output_names=['hmap'],
                                     max_size=1,
-                                    threads_num=4,
+                                    threads_num=3,
                                     update=True)
 
     read_tiles.init_input_queue(partial(utils.make_coords, filename))
-    scan_tiles.set_input_queue(read_tiles.get_output())    
+    scan_tiles.set_input_queue(read_tiles.get_output()) 
+    make_heatmap.set_input_queue(scan_tiles.get_output())   
     read_tiles.start()    
-    scan_tiles.put_into_out_queue([np.zeros(utils.calc_size_in_tiles(filename), 
-                                            dtype=np.float64)])
+    make_heatmap.put_into_out_queue([np.zeros(utils.calc_size_in_tiles(filename), 
+                                            dtype=np.float64)])    
     scan_tiles.start()
+    make_heatmap.start()
     read_tiles.join()
     scan_tiles.join()
+    make_heatmap.join()
 
-    output = scan_tiles.get_output().get()
+    output = make_heatmap.get_output().get()
     hmap = output['hmap']
     hist, bins = np.histogram(hmap, bins=100, range=(0.0, 1.0), density=True)
     heatmap_otsu = utils.calculate_otsu(hist, 100)/100.0
@@ -69,7 +77,9 @@ if __name__ == "__main__":
 
     with open(THRESHOLDS, "r") as file_handle:
         line = file_handle.read()
-        otsu = list(map(lambda x: int(x), line.split(' ')))
+        otsu = list(map(lambda y: list(map(lambda z: int(z), y)), 
+                            tuple(map(lambda x: x.split(" "), 
+                                        line.split("\n")[:-1]))))    
 
     start = datetime.now()
     plot, hmap_otsu, meat_percentage, hmap = make_heatmap(FILE, otsu)
