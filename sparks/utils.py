@@ -116,8 +116,13 @@ def detect_peaks(hist, count=2):
     sigma = log1p(peaks)
     print(peaks, sigma)
     while (peaks > count):
-        hist_copy = gaussian_filter(hist_copy, sigma=sigma)        
-        peaks = len(argrelextrema(hist_copy, np.greater, mode="wrap")[0])
+        new_hist = gaussian_filter(hist_copy, sigma=sigma)        
+        peaks = len(argrelextrema(new_hist, np.greater, mode="wrap")[0])
+        if peaks < count:
+            peaks = count + 1
+            sigma = sigma * 0.5
+            continue
+        hist_copy = new_hist
         sigma = log1p(peaks)
     print(peaks, sigma)
     return argrelextrema(hist_copy, np.greater, mode="wrap")[0]
@@ -153,7 +158,10 @@ def init_sampler_coords(filename):
 
 def init_sampler_directories(target_dir, class_dirs):
     for class_dir in class_dirs:
-        make_directory(os.path.join(target_dir, class_dir))
+        try:
+            make_directory(os.path.join(target_dir, class_dir))
+        except:
+            continue
     return {}
 
 def make_coords(filename, coords):
@@ -195,6 +203,7 @@ def samples_heatmap(x, y, samples_map, read_size):
     return samples_map
 
 def save_heatmap(heatmap, mask):
+    plt.clf()
     xmin, xmax, ymin, ymax = 0, heatmap.shape[1], heatmap.shape[0], 0
     extent = xmin, xmax, ymin, ymax
     alpha=1.0
@@ -211,6 +220,7 @@ def save_heatmap(heatmap, mask):
     return plt
 
 def save_histogram_with_otsu(name, histograms, otsu):
+    plt.clf()
     figure, axarr = plt.subplots(3)
     figure.tight_layout()
     for x, otsu_value in zip(range(3), otsu):
@@ -242,7 +252,8 @@ def save_image(image, x, y, tumor, target_dir):
                 quality=50)
     return (x, y)
 
-def save_thresholds_heatmap(hmap, hist, bins, heatmap_otsu, mini):        
+def save_thresholds_heatmap(hmap, hist, bins, heatmap_otsu, mini): 
+    plt.clf()       
     width = 0.7 * (bins[1] - bins[0])
     center = (bins[:-1] + bins[1:]) / 2
 
