@@ -134,10 +134,10 @@ def get_mini(filename):
                     dtype=np.uint8)
 
 
-def get_tile(x, y, handler, **kwargs):
-    return (np.array(handler.read_region((x, y), 0, TILE_SIZE), dtype=np.uint8), 
-            int(x/TILE_SIZE[0]), 
-            int(y/TILE_SIZE[1]))
+def get_tile(x, y, handler, tile_size=TILE_SIZE, **kwargs):
+    return (np.array(handler.read_region((x, y), 0, tile_size), dtype=np.uint8), 
+            int(x/tile_size[0]), 
+            int(y/tile_size[1]))
 
 def init_openslide(filename, maskname=None):
     handler = openslide.OpenSlide(filename)

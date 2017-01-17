@@ -1,7 +1,9 @@
 from io import StringIO
+import openslide
 import os
-from PIL import Image
+from PIL import Image 
 import re
+from sparks import utils
 import tensorflow as tf
 
 IMAGE_SIZE = 128
@@ -41,6 +43,24 @@ def read(filename_queue):
 
     return result
 
+def read_slide(coords_queue, handler):
+    class CAM17Tile(object):
+        pass
+
+    result = CAM17Tile()
+
+    result.height = IMAGE_SIZE
+    result.width = IMAGE_SIZE
+    result.depth = CHANNELS
+
+    image, x, y = utils.get_tile(0, 0, handler, (IMAGE_SIZE, IMAGE_SIZE))
+    image = image[:,:,:3]
+
+    depth_major = tf.reshape(image,
+                                [result.depth, result.height, result.width])
+    result.uint8image = tf.transpose(depth_major, [1, 2, 0])
+
+    return result
 
 def _generate_image_and_label_batch(image, label, min_queue_examples,
                                     batch_size, shuffle):
@@ -62,6 +82,16 @@ def _generate_image_and_label_batch(image, label, min_queue_examples,
     tf.summary.image('images', images)
 
     return images, tf.reshape(label_batch, [batch_size])
+
+def _generate_image_batch(image, min_queue_examples, batch_size, shuffle):
+    num_preprocess_threads = 16
+    images = tf.train.shuffle_batch(
+                                [image],
+                                batch_size=batch_size,
+                                num_threads=num_preprocess_threads,
+                                capacity=min_queue_examples + 3 * batch_size,
+                                min_after_dequeue=min_queue_examples)
+    return images
 
 
 def distorted_inputs(data_dir, batch_size, leave_idx):
@@ -147,3 +177,24 @@ def inputs(data_dir, use_fold, batch_size):
     return _generate_image_and_label_batch(float_image, read_input.label,
                                             min_queue_examples, batch_size,
                                             shuffle=False)
+
+def inputs_from_slide(filename, batch_size):
+    coords_queue = tf.train.string_input_producer(['kak'])
+
+    handler = openslide.OpenSlide(filename)
+    read_input = read_slide(coords_queue, handler)
+
+    reshaped_image = tf.cast(read_input.uint8image, tf.float32)
+
+    height = IMAGE_SIZE
+    width = IMAGE_SIZE
+
+    float_image = tf.image.per_image_standardization(reshaped_image)
+
+    min_fraction_of_examples_in_queue = 0.4
+    min_queue_examples = int(NUM_EXAMPLES_PER_EPOCH_FOR_EVAL *
+                                min_fraction_of_examples_in_queue)
+
+    return _generate_image_batch(float_image, min_queue_examples, batch_size,
+                                    shuffle=False)
+
