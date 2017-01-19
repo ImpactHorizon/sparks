@@ -53,7 +53,11 @@ def read_slide(coords_queue, handler):
     result.width = IMAGE_SIZE
     result.depth = CHANNELS
 
-    image, x, y = utils.get_tile(0, 0, handler, (IMAGE_SIZE, IMAGE_SIZE))
+    reader = tf.ReaderBase()
+    coords, unused = reader.read(coords_queue)
+
+    image, x, y = tf.placeholder(utils.get_tile(coords[0], coords[1], handler, 
+                                    (IMAGE_SIZE, IMAGE_SIZE)))
     image = image[:,:,:3]
 
     depth_major = tf.reshape(image,
@@ -85,12 +89,10 @@ def _generate_image_and_label_batch(image, label, min_queue_examples,
 
 def _generate_image_batch(image, min_queue_examples, batch_size, shuffle):
     num_preprocess_threads = 16
-    images = tf.train.shuffle_batch(
-                                [image],
-                                batch_size=batch_size,
-                                num_threads=num_preprocess_threads,
-                                capacity=min_queue_examples + 3 * batch_size,
-                                min_after_dequeue=min_queue_examples)
+    images = tf.train.batch([image],
+                            batch_size=batch_size,
+                            num_threads=num_preprocess_threads,
+                            capacity=min_queue_examples + 3 * batch_size)
     return images
 
 
@@ -178,10 +180,14 @@ def inputs(data_dir, use_fold, batch_size):
                                             min_queue_examples, batch_size,
                                             shuffle=False)
 
-def inputs_from_slide(filename, batch_size):
-    coords_queue = tf.train.string_input_producer(['kak'])
+def inputs_from_slide(filename, batch_size):        
 
-    handler = openslide.OpenSlide(filename)
+    handler = utils.init_openslide(filename)['handler']
+
+    print("kak")
+    coords_queue = tf.train.input_producer(utils.make_coords_list(handler))
+    print("kak2")
+
     read_input = read_slide(coords_queue, handler)
 
     reshaped_image = tf.cast(read_input.uint8image, tf.float32)
@@ -197,4 +203,3 @@ def inputs_from_slide(filename, batch_size):
 
     return _generate_image_batch(float_image, min_queue_examples, batch_size,
                                     shuffle=False)
-
