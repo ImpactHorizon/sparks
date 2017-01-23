@@ -12,7 +12,7 @@ NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = tf_input.NUM_EXAMPLES_PER_EPOCH_FOR_EVAL
 
 # Constants describing the training process.
 MOVING_AVERAGE_DECAY = 0.9999     # The decay to use for the moving average.
-NUM_EPOCHS_PER_DECAY = 350.0      # Epochs after which learning rate decays.
+NUM_EPOCHS_PER_DECAY = 500.0      # Epochs after which learning rate decays.
 LEARNING_RATE_DECAY_FACTOR = 0.1  # Learning rate decay factor.
 INITIAL_LEARNING_RATE = 0.1       # Initial learning rate.
 
@@ -128,12 +128,19 @@ def inference(images, batch_size=256):
 
 
 def loss(logits, labels):
-    labels = tf.cast(labels, tf.int64)
-
-    #cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-    #                        logits, labels, name='cross_entropy_per_example')
-    cross_entropy = tf.nn.weighted_cross_entropy_with_logits(
-                logits, labels, 0.2, name='cross_entropy_per_example')
+    labels = tf.cast(labels, tf.int64)  
+    batch_size = logits.get_shape()[0].value  
+    weights = tf.constant(batch_size*[1, 20], tf.float32, 
+                            shape=logits.get_shape())
+    softmax = tf.nn.softmax(logits)
+    softmax = tf.clip_by_value(softmax, 1e-10, 0.999999)
+    
+    with tf.device('/cpu:0'):
+        targets = tf.one_hot(labels, depth=2)
+    
+    cross_entropy = -tf.reduce_mean(weights*targets*tf.log(softmax) + 
+                                        weights*(1-targets)*tf.log(1-softmax), 
+                                        reduction_indices=[1])    
     cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
     tf.add_to_collection('losses', cross_entropy_mean)
 
