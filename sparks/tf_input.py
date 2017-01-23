@@ -2,14 +2,16 @@ from io import StringIO
 import openslide
 import os
 from PIL import Image 
+import random
 import re
 from sparks import utils
 import tensorflow as tf
+import time
 
 IMAGE_SIZE = 128
 CHANNELS = 3
 NUM_CLASSES = 2
-NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 4000
+NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 10000
 NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 1000
 
 def read(filename_queue):
@@ -38,8 +40,8 @@ def read(filename_queue):
     image = tf.image.decode_jpeg(image_buffer, channels=CHANNELS)
 
     depth_major = tf.reshape(image,
-                                [result.depth, result.height, result.width])
-    result.uint8image = tf.transpose(depth_major, [1, 2, 0])
+                                [result.width, result.height, result.depth])
+    result.uint8image = tf.transpose(depth_major, [1, 0, 2])
 
     return result
 
@@ -75,7 +77,8 @@ def _generate_image_and_label_batch(image, label, min_queue_examples,
                                 batch_size=batch_size,
                                 num_threads=num_preprocess_threads,
                                 capacity=min_queue_examples + 3 * batch_size,
-                                min_after_dequeue=min_queue_examples)
+                                min_after_dequeue=min_queue_examples,
+                                seed=13)
     else:
         images, label_batch = tf.train.batch(
                                 [image, label],
@@ -113,7 +116,10 @@ def distorted_inputs(data_dir, batch_size, leave_idx):
             else:
                 filenames.append(os.path.join(data_dir, file))
 
-    filename_queue = tf.train.string_input_producer(filenames)
+    random.seed(time.time())
+    random.shuffle(filenames)
+
+    filename_queue = tf.train.string_input_producer(filenames)    
 
     read_input = read(filename_queue)
     reshaped_image = tf.cast(read_input.uint8image, tf.float32)
