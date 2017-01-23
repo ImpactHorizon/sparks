@@ -141,16 +141,18 @@ def _process_image_files(name, filenames, texts, labels, num_shards, threads,
     sys.stdout.flush()
 
 def _find_image_files(data_dir, labels_file):
+    labels_map = {"healthy" : 0, "tumor" : 1}
+
     print('Determining list of input files and labels from %s.' % data_dir)
     unique_labels = [l.strip() for l in tf.gfile.FastGFile(
         labels_file, 'r').readlines()]
 
     labels = []
     filenames = []
-    texts = []
-    label_index = 0
+    texts = []    
 
     for text in unique_labels:
+        label_index = labels_map[text]
         jpeg_file_path = '%s/%s/*' % (data_dir, text)
         matching_files = tf.gfile.Glob(jpeg_file_path)
 
@@ -164,7 +166,6 @@ def _find_image_files(data_dir, labels_file):
 
         print('Finished finding files in %d of %d classes.' % (
                 label_index+1, len(unique_labels)))
-        label_index += 1
 
     shuffled_index = list(range(len(filenames)))
     random.seed(12345)
