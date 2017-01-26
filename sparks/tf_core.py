@@ -13,8 +13,13 @@ NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = tf_input.NUM_EXAMPLES_PER_EPOCH_FOR_EVAL
 # Constants describing the training process.
 MOVING_AVERAGE_DECAY = 0.9999     # The decay to use for the moving average.
 NUM_EPOCHS_PER_DECAY = 500.0      # Epochs after which learning rate decays.
-LEARNING_RATE_DECAY_FACTOR = 0.1  # Learning rate decay factor.
+LEARNING_RATE_DECAY_FACTOR = 0.5  # Learning rate decay factor.
 INITIAL_LEARNING_RATE = 0.1       # Initial learning rate.
+
+PROP = 5.29
+FACTOR = (100.0-PROP) / PROP
+H_FACTOR = 1 / (FACTOR+1.0)
+T_FACTOR = FACTOR / (FACTOR+1.0)
 
 TOWER_NAME = 'tower'
 
@@ -130,7 +135,7 @@ def inference(images, batch_size=256):
 def loss(logits, labels):
     labels = tf.cast(labels, tf.int64)  
     batch_size = logits.get_shape()[0].value  
-    weights = tf.constant(batch_size*[1, 20], tf.float32, 
+    weights = tf.constant(batch_size*[H_FACTOR, T_FACTOR], tf.float32, 
                             shape=logits.get_shape())
     softmax = tf.nn.softmax(logits)
     softmax = tf.clip_by_value(softmax, 1e-10, 0.999999)
