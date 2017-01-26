@@ -16,9 +16,7 @@ target_dir = "C:\\workspace\\data\\learning_data"
 
 with open(path.join(target_dir, "stats.txt"), "a") as file_handle:
         for file in listdir(target_dir):
-            tf.reset_default_graph()
-            if 'normal' in file:
-                continue
+            tf.reset_default_graph()          
             if file == "stats.txt":
                 continue
             print(file)   
