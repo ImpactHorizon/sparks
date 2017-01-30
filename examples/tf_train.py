@@ -18,7 +18,7 @@ def train(data_dir, train_dir, batch_size, leave_idx, max_steps):
                                     initializer=tf.constant_initializer(0.0)) 
         total_tumors = total_tumors.assign_add(tf.reduce_sum(
                                                 tf.cast(labels, tf.float32)))
-        tf.summary.scalar("total_tumors", total_tumors)
+        tf.summary.scalar("total_seen_tumors", total_tumors)
         logits = tf_core.inference(images, batch_size)
         loss = tf_core.loss(logits, labels)
         train_op = tf_core.train(loss, global_step, batch_size)
@@ -39,7 +39,7 @@ def train(data_dir, train_dir, batch_size, leave_idx, max_steps):
 
             def after_run(self, run_context, run_values):                 
                 duration = time.time() - self._start_time
-                loss_value = run_values.results[0]
+                loss_value = run_values.results[0]                
 
                 if self._step % 10 == 0:
                     num_examples_per_step = batch_size
